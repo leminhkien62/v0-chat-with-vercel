@@ -1,0 +1,140 @@
+@model WmsSystem.ViewModels.MoveInventoryViewModel
+@{
+    ViewBag.Title = "Move Inventory";
+}
+
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-arrow-left-right"></i> Move Inventory
+                </h5>
+            </div>
+            <div class="card-body">
+                @using (Html.BeginForm())
+                {
+                    @Html.AntiForgeryToken()
+                    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                @Html.LabelFor(m => m.ItemId, "Item", new { @class = "form-label" })
+                                @Html.DropDownListFor(m => m.ItemId, Model.Items, "Select Item...", new { @class = "form-select", id = "itemSelect" })
+                                @Html.ValidationMessageFor(m => m.ItemId, "", new { @class = "text-danger" })
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                @Html.LabelFor(m => m.Quantity, new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.Quantity, new { @class = "form-control", type = "number", min = "0", step = "0.01" })
+                                @Html.ValidationMessageFor(m => m.Quantity, "", new { @class = "text-danger" })
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                @Html.LabelFor(m => m.FromLocationId, "From Location", new { @class = "form-label" })
+                                @Html.DropDownListFor(m => m.FromLocationId, new SelectList(new List<object>()), "Select source location...", new { @class = "form-select", id = "fromLocationSelect" })
+                                @Html.ValidationMessageFor(m => m.FromLocationId, "", new { @class = "text-danger" })
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                @Html.LabelFor(m => m.ToLocationId, "To Location", new { @class = "form-label" })
+                                @Html.DropDownListFor(m => m.ToLocationId, Model.ToLocations, "Select destination location...", new { @class = "form-select" })
+                                @Html.ValidationMessageFor(m => m.ToLocationId, "", new { @class = "text-danger" })
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                @Html.LabelFor(m => m.Lot, new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.Lot, new { @class = "form-control", placeholder = "Optional lot number" })
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                @Html.LabelFor(m => m.Serial, new { @class = "form-label" })
+                                @Html.TextBoxFor(m => m.Serial, new { @class = "form-control", placeholder = "Optional serial number" })
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        @Html.LabelFor(m => m.Notes, new { @class = "form-label" })
+                        @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = 3, placeholder = "Reason for move..." })
+                    </div>
+
+                    <div id="stockInfo" class="alert alert-info" style="display: none;">
+                        <h6><i class="bi bi-info-circle"></i> Available Stock</h6>
+                        <div id="stockDetails"></div>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="@Url.Action("Index")" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Back
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-arrow-left-right"></i> Move Inventory
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    $('#itemSelect').on('change', function() {
+        var itemId = $(this).val();
+        if (itemId) {
+            // Load available locations for this item
+            $.get('@Url.Action("GetItemLocations")', { itemId: itemId }, function(data) {
+                var fromSelect = $('#fromLocationSelect');
+                fromSelect.empty().append('<option value="">Select source location...</option>');
+                
+                var stockDetails = '';
+                $.each(data, function(i, location) {
+                    fromSelect.append('<option value="' + location.LocationId + '">' + 
+                        location.LocationCode + ' (' + location.AvailableQty + ' available)</option>');
+                    
+                    stockDetails += '<div class="mb-2">' +
+                        '<strong>' + location.LocationCode + ':</strong> ' + location.AvailableQty + ' available';
+                    if (location.Lot) stockDetails += ' (Lot: ' + location.Lot + ')';
+                    if (location.Serial) stockDetails += ' (S/N: ' + location.Serial + ')';
+                    stockDetails += '</div>';
+                });
+                
+                $('#stockDetails').html(stockDetails);
+                $('#stockInfo').show();
+            });
+        } else {
+            $('#fromLocationSelect').empty().append('<option value="">Select source location...</option>');
+            $('#stockInfo').hide();
+        }
+    });
+
+    $('#fromLocationSelect').on('change', function() {
+        var locationId = $(this).val();
+        var itemId = $('#itemSelect').val();
+        
+        if (locationId && itemId) {
+            // Get specific stock details for this location
+            $.get('@Url.Action("GetStockDetails")', { itemId: itemId, locationId: locationId }, function(data) {
+                if (data) {
+                    $('#Lot').val(data.Lot || '');
+                    $('#Serial').val(data.Serial || '');
+                    $('#Quantity').attr('max', data.AvailableQty);
+                }
+            });
+        }
+    });
+});
+</script>

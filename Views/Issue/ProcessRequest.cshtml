@@ -1,0 +1,224 @@
+@model WmsSystem.ViewModels.ProcessRequestViewModel
+@{
+    ViewBag.Title = "Process Request";
+}
+
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-check-circle"></i> Process Request REQ-@Model.Request.Id
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <h6>Request Details</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Item:</strong></td>
+                                <td>@Model.Request.Item.Code - @Model.Request.Item.Name</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Requested Qty:</strong></td>
+                                <td>@Model.Request.Qty @Model.Request.Item.UoM</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Requester:</strong></td>
+                                <td>@Model.Request.Requester</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Department:</strong></td>
+                                <td>@Model.Request.Department?.Name</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Created:</strong></td>
+                                <td>@Model.Request.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Availability Summary</h6>
+                        <div class="alert @(Model.TotalAvailable >= Model.Request.Qty ? "alert-success" : "alert-warning")">
+                            <strong>Total Available:</strong> @Model.TotalAvailable @Model.Request.Item.UoM
+                            <br>
+                            <strong>Can Fulfill:</strong> 
+                            @if (Model.TotalAvailable >= Model.Request.Qty)
+                            {
+                                <span class="text-success">Yes (Complete)</span>
+                            }
+                            else
+                            {
+                                <span class="text-warning">Partial (@Model.TotalAvailable/@Model.Request.Qty)</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @using (Html.BeginForm())
+                {
+                    @Html.AntiForgeryToken()
+                    @Html.HiddenFor(m => m.Request.Id)
+                    @Html.ValidationSummary(true, "", new { @class = "text-danger" })
+
+                    <h6>Pick List (FIFO/FEFO Optimized)</h6>
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Location</th>
+                                    <th>Lot/Serial</th>
+                                    <th>Expiry Date</th>
+                                    <th>Received</th>
+                                    <th>Available</th>
+                                    <th>Suggested</th>
+                                    <th>Pick Qty</th>
+                                    <th>Priority</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (int i = 0; i < Model.PickList.Count; i++)
+                                {
+                                    var item = Model.PickList[i];
+                                    <tr class="@(item.IsExpiringSoon ? "table-warning" : "")">
+                                        <td>
+                                            <strong>@item.WarehouseCode</strong>
+                                            <br>
+                                            <small class="text-muted">@item.LocationCode</small>
+                                        </td>
+                                        <td>
+                                            @if (!string.IsNullOrEmpty(item.Lot))
+                                            {
+                                                <small><strong>Lot:</strong> @item.Lot</small><br>
+                                            }
+                                            @if (!string.IsNullOrEmpty(item.Serial))
+                                            {
+                                                <small><strong>S/N:</strong> @item.Serial</small>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (item.ExpiryDate.HasValue)
+                                            {
+                                                <span class="@(item.IsExpiringSoon ? "text-warning fw-bold" : "")">
+                                                    @item.ExpiryDate.Value.ToString("yyyy-MM-dd")
+                                                </span>
+                                                if (item.IsExpiringSoon)
+                                                {
+                                                    <br><small class="text-warning"><i class="bi bi-exclamation-triangle"></i> Expiring Soon</small>
+                                                }
+                                            }
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">@item.ReceivedDate.ToString("yyyy-MM-dd")</small>
+                                        </td>
+                                        <td>@item.AvailableQty</td>
+                                        <td>
+                                            <span class="badge bg-primary">@item.SuggestedQty</span>
+                                        </td>
+                                        <td>
+                                            @Html.HiddenFor(m => m.PickList[i].StockId)
+                                            @Html.TextBoxFor(m => m.PickList[i].PickQty, new { 
+                                                @class = "form-control form-control-sm", 
+                                                style = "width: 80px;", 
+                                                type = "number", 
+                                                min = "0", 
+                                                max = item.AvailableQty,
+                                                step = "0.01"
+                                            })
+                                        </td>
+                                        <td>
+                                            @if (item.Priority == 1)
+                                            {
+                                                <span class="badge bg-danger">High</span>
+                                            }
+                                            else if (item.Priority <= 3)
+                                            {
+                                                <span class="badge bg-warning">Medium</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary">Low</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                @Html.LabelFor(m => m.Notes, new { @class = "form-label" })
+                                @Html.TextAreaFor(m => m.Notes, new { @class = "form-control", rows = 3, placeholder = "Optional notes or justification for overrides..." })
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="alert alert-info">
+                                <h6><i class="bi bi-info-circle"></i> Pick Instructions</h6>
+                                <ul class="mb-0">
+                                    <li>Items are sorted by FIFO/FEFO priority</li>
+                                    <li>Yellow rows indicate expiring items</li>
+                                    <li>Suggested quantities optimize inventory rotation</li>
+                                    <li>You can override quantities with justification</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="@Url.Action("Index")" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> Back to Requests
+                        </a>
+                        <div>
+                            <button type="submit" name="action" value="reject" class="btn btn-outline-danger me-2">
+                                <i class="bi bi-x-circle"></i> Reject Request
+                            </button>
+                            <button type="submit" name="action" value="process" class="btn btn-success">
+                                <i class="bi bi-check-circle"></i> Process Issue
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Auto-calculate total pick quantity
+    $('input[name*="PickQty"]').on('input', function() {
+        var total = 0;
+        $('input[name*="PickQty"]').each(function() {
+            var val = parseFloat($(this).val()) || 0;
+            total += val;
+        });
+        
+        var requested = @Model.Request.Qty;
+        var status = total >= requested ? 'Complete' : 'Partial (' + total + '/' + requested + ')';
+        var alertClass = total >= requested ? 'alert-success' : 'alert-warning';
+        
+        $('.alert').removeClass('alert-success alert-warning').addClass(alertClass);
+        $('.alert').find('span').last().text(status);
+    });
+
+    // Validate form before submit
+    $('form').on('submit', function(e) {
+        var action = $(e.originalEvent.submitter).val();
+        if (action === 'process') {
+            var totalPick = 0;
+            $('input[name*="PickQty"]').each(function() {
+                totalPick += parseFloat($(this).val()) || 0;
+            });
+            
+            if (totalPick <= 0) {
+                e.preventDefault();
+                alert('Please specify quantities to pick.');
+                return false;
+            }
+        }
+    });
+});
+</script>

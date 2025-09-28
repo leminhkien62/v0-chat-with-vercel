@@ -1,0 +1,81 @@
+@model List<WmsSystem.Models.Warehouse>
+@{
+    ViewBag.Title = "Warehouses";
+}
+
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-building"></i> Warehouses</h5>
+                <a href="@Url.Action("Create")" class="btn btn-primary btn-sm">
+                    <i class="bi bi-plus"></i> Add Warehouse
+                </a>
+            </div>
+            <div class="card-body">
+                <table id="warehouseTable" class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var warehouse in Model)
+                        {
+                            <tr>
+                                <td>@warehouse.Code</td>
+                                <td>@warehouse.Name</td>
+                                <td>
+                                    @if (warehouse.Active)
+                                    {
+                                        <span class="badge bg-success">Active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">Inactive</span>
+                                    }
+                                </td>
+                                <td>@warehouse.CreatedAt.ToString("yyyy-MM-dd")</td>
+                                <td>
+                                    <a href="@Url.Action("Edit", new { id = warehouse.Id })" class="btn btn-sm btn-outline-primary">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteWarehouse(@warehouse.Id)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script>
+        $(document).ready(function() {
+            $('#warehouseTable').DataTable({
+                responsive: true,
+                pageLength: 25
+            });
+        });
+
+        function deleteWarehouse(id) {
+            if (confirm('Are you sure you want to delete this warehouse?')) {
+                $.post('@Url.Action("Delete")', { id: id }, function(result) {
+                    if (result.success) {
+                        location.reload();
+                    } else {
+                        alert(result.message);
+                    }
+                });
+            }
+        }
+    </script>
+}

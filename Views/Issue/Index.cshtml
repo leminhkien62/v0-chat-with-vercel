@@ -1,0 +1,198 @@
+@model WmsSystem.ViewModels.IssueIndexViewModel
+@{
+    ViewBag.Title = "Issue & Move";
+}
+
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="bi bi-box-arrow-right"></i> Issue & Move</h2>
+            <div>
+                <a href="@Url.Action("CreateIssue")" class="btn btn-primary">
+                    <i class="bi bi-plus"></i> Manual Issue
+                </a>
+                <a href="@Url.Action("Move")" class="btn btn-warning">
+                    <i class="bi bi-arrow-left-right"></i> Move Items
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-list-task"></i> Pending Requests</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.PendingRequests.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Request ID</th>
+                                    <th>Item</th>
+                                    <th>Quantity</th>
+                                    <th>Requester</th>
+                                    <th>Department</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var request in Model.PendingRequests)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>REQ-@request.Id</strong>
+                                        </td>
+                                        <td>
+                                            <div>
+                                                <strong>@request.Item.Code</strong>
+                                                <br>
+                                                <small class="text-muted">@request.Item.Name</small>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info">@request.Qty @request.Item.UoM</span>
+                                        </td>
+                                        <td>@request.Requester</td>
+                                        <td>@request.Department?.Name</td>
+                                        <td>
+                                            @switch (request.Status)
+                                            {
+                                                case WmsSystem.Models.RequestStatus.New:
+                                                    <span class="badge bg-primary">New</span>
+                                                    break;
+                                                case WmsSystem.Models.RequestStatus.Processing:
+                                                    <span class="badge bg-warning">Processing</span>
+                                                    break;
+                                                case WmsSystem.Models.RequestStatus.Completed:
+                                                    <span class="badge bg-success">Completed</span>
+                                                    break;
+                                                case WmsSystem.Models.RequestStatus.Rejected:
+                                                    <span class="badge bg-danger">Rejected</span>
+                                                    break;
+                                            }
+                                        </td>
+                                        <td>@request.CreatedAt.ToString("MM/dd HH:mm")</td>
+                                        <td>
+                                            @if (request.Status == WmsSystem.Models.RequestStatus.New)
+                                            {
+                                                <a href="@Url.Action("ProcessRequest", new { requestId = request.Id })" 
+                                                   class="btn btn-sm btn-success">
+                                                    <i class="bi bi-check-circle"></i> Process
+                                                </a>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">In Progress</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-4">
+                        <i class="bi bi-inbox display-1 text-muted"></i>
+                        <p class="text-muted mt-2">No pending requests</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Issues</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.RecentIssues.Any())
+                {
+                    <div class="list-group list-group-flush">
+                        @foreach (var issue in Model.RecentIssues)
+                        {
+                            <div class="list-group-item px-0">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">@issue.Item.Code</h6>
+                                        <p class="mb-1 small text-muted">@issue.Item.Name</p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-geo-alt"></i> @issue.FromLocation.Warehouse.Code - @issue.FromLocation.Code
+                                        </small>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge bg-danger">-@issue.Qty</span>
+                                        <br>
+                                        <small class="text-muted">@issue.Ts.ToString("HH:mm")</small>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-3">
+                        <i class="bi bi-clock-history display-4 text-muted"></i>
+                        <p class="text-muted mt-2">No recent issues</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@6.0.1/dist/browser/signalr.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Initialize SignalR connection
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/wmsHub")
+                .build();
+
+            connection.start().then(function () {
+                console.log("SignalR connected");
+            }).catch(function (err) {
+                console.error("SignalR connection error: " + err.toString());
+            });
+
+            // Listen for issue updates
+            connection.on("issueUpdate", function (data) {
+                showNotification("success", `Item issued: ${data.ItemCode} (${data.QtyIssued}) to ${data.Requester}`);
+                setTimeout(() => location.reload(), 2000);
+            });
+
+            // Listen for move updates
+            connection.on("moveUpdate", function (data) {
+                showNotification("info", `Item moved: ${data.ItemCode} from ${data.FromLocation} to ${data.ToLocation}`);
+                setTimeout(() => location.reload(), 2000);
+            });
+
+            function showNotification(type, message) {
+                const alertClass = type === 'success' ? 'alert-success' : 'alert-info';
+                const notification = `
+                    <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+                         style="top: 20px; right: 20px; z-index: 9999;">
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+                $('body').append(notification);
+                
+                setTimeout(() => {
+                    $('.alert').alert('close');
+                }, 5000);
+            }
+        });
+    </script>
+}

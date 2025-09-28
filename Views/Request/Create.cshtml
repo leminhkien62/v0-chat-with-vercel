@@ -1,0 +1,212 @@
+@model WmsSystem.ViewModels.CreateRequestViewModel
+@{
+    ViewBag.Title = "Material Request";
+    Layout = "~/Views/Shared/_PWALayout.cshtml";
+}
+
+<div class="container-fluid px-3 py-4">
+    @if (ViewBag.Success == true)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle"></i>
+            <strong>Request Submitted Successfully!</strong>
+            <br>Your request ID is: <strong>REQ-@ViewBag.RequestId</strong>
+            <br>You will be notified when it's processed.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="bi bi-exclamation-triangle"></i>
+            @ViewBag.Error
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-clipboard-plus"></i> Material Request Form
+            </h5>
+        </div>
+        <div class="card-body">
+            @using (Html.BeginForm("Create", "Request", FormMethod.Post, new { @class = "needs-validation", novalidate = "novalidate" }))
+            {
+                @Html.AntiForgeryToken()
+                @Html.ValidationSummary(true, "", new { @class = "alert alert-danger" })
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label for="DeptId" class="form-label">
+                            <i class="bi bi-building"></i> Department *
+                        </label>
+                        @Html.DropDownListFor(m => m.DeptId, Model.Departments, "Select Department...", new { 
+                            @class = "form-select", 
+                            required = "required" 
+                        })
+                        @Html.ValidationMessageFor(m => m.DeptId, "", new { @class = "invalid-feedback" })
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label for="Requester" class="form-label">
+                            <i class="bi bi-person"></i> Your Name *
+                        </label>
+                        @Html.TextBoxFor(m => m.Requester, new { 
+                            @class = "form-control", 
+                            placeholder = "Enter your full name",
+                            required = "required"
+                        })
+                        @Html.ValidationMessageFor(m => m.Requester, "", new { @class = "invalid-feedback" })
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-8 mb-3">
+                        <label for="ItemId" class="form-label">
+                            <i class="bi bi-box"></i> Item *
+                        </label>
+                        @Html.DropDownListFor(m => m.ItemId, Model.Items, "Select Item...", new { 
+                            @class = "form-select", 
+                            id = "itemSelect",
+                            required = "required"
+                        })
+                        @Html.ValidationMessageFor(m => m.ItemId, "", new { @class = "invalid-feedback" })
+                        <div id="itemInfo" class="mt-2" style="display: none;">
+                            <small class="text-muted">
+                                <i class="bi bi-info-circle"></i> <span id="itemDetails"></span>
+                            </small>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label for="Qty" class="form-label">
+                            <i class="bi bi-123"></i> Quantity *
+                        </label>
+                        @Html.TextBoxFor(m => m.Qty, new { 
+                            @class = "form-control", 
+                            type = "number", 
+                            step = "0.01", 
+                            min = "0.01",
+                            placeholder = "0.00",
+                            required = "required"
+                        })
+                        @Html.ValidationMessageFor(m => m.Qty, "", new { @class = "invalid-feedback" })
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="Note" class="form-label">
+                        <i class="bi bi-chat-text"></i> Notes (Optional)
+                    </label>
+                    @Html.TextAreaFor(m => m.Note, new { 
+                        @class = "form-control", 
+                        rows = 3, 
+                        placeholder = "Additional information or special requirements..."
+                    })
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="bi bi-send"></i> Submit Request
+                    </button>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="bi bi-question-circle"></i> Check Request Status
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="input-group">
+                    <input type="number" id="statusRequestId" class="form-control" placeholder="Enter Request ID (e.g., 123)">
+                    <button class="btn btn-outline-secondary" type="button" id="checkStatusBtn">
+                        <i class="bi bi-search"></i> Check Status
+                    </button>
+                </div>
+                <div id="statusResult" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+$(document).ready(function() {
+    // Item selection handler
+    $('#itemSelect').on('change', function() {
+        var itemId = $(this).val();
+        if (itemId) {
+            $.get('@Url.Action("GetItemInfo", "Request")', { itemId: itemId }, function(data) {
+                if (data) {
+                    var info = `Available: ${data.TotalAvailable} ${data.UoM}`;
+                    if (data.Locations && data.Locations.length > 0) {
+                        info += ` in ${data.Locations.length} location(s)`;
+                    }
+                    $('#itemDetails').text(info);
+                    $('#itemInfo').show();
+                } else {
+                    $('#itemInfo').hide();
+                }
+            }).fail(function() {
+                $('#itemInfo').hide();
+            });
+        } else {
+            $('#itemInfo').hide();
+        }
+    });
+
+    // Status check handler
+    $('#checkStatusBtn').on('click', function() {
+        var requestId = $('#statusRequestId').val();
+        if (!requestId) {
+            alert('Please enter a request ID');
+            return;
+        }
+
+        $.get('@Url.Action("CheckRequestStatus", "Request")', { requestId: requestId }, function(data) {
+            var resultDiv = $('#statusResult');
+            
+            if (data.found) {
+                var statusClass = 'info';
+                if (data.status === 'Completed') statusClass = 'success';
+                else if (data.status === 'Rejected') statusClass = 'danger';
+                else if (data.status === 'Processing') statusClass = 'warning';
+
+                var html = `
+                    <div class="alert alert-${statusClass}">
+                        <strong>Request REQ-${requestId}</strong><br>
+                        Status: <span class="badge bg-${statusClass}">${data.status}</span><br>
+                        ${data.processedAt ? `Processed: ${data.processedAt}<br>` : ''}
+                        ${data.note ? `Note: ${data.note}` : ''}
+                    </div>`;
+                resultDiv.html(html);
+            } else {
+                resultDiv.html('<div class="alert alert-warning">Request not found. Please check the ID and try again.</div>');
+            }
+            
+            resultDiv.show();
+        }).fail(function() {
+            $('#statusResult').html('<div class="alert alert-danger">Error checking status. Please try again.</div>').show();
+        });
+    });
+
+    // Form validation
+    $('form').on('submit', function(e) {
+        var form = this;
+        if (!form.checkValidity()) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        form.classList.add('was-validated');
+    });
+
+    // Auto-focus first field
+    $('#DeptId').focus();
+});
+</script>
+}

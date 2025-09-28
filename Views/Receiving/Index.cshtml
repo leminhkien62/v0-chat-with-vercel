@@ -1,0 +1,183 @@
+@model WmsSystem.ViewModels.ReceivingIndexViewModel
+@{
+    ViewBag.Title = "Receiving";
+}
+
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2><i class="bi bi-box-arrow-in-down"></i> Receiving</h2>
+            <div>
+                <a href="@Url.Action("SyncPurchaseOrders")" class="btn btn-outline-primary">
+                    <i class="bi bi-arrow-clockwise"></i> Sync POs from ERP
+                </a>
+                <a href="@Url.Action("Putaway")" class="btn btn-warning">
+                    <i class="bi bi-boxes"></i> Putaway (@ViewBag.OpenLpnCount)
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-list-check"></i> Pending Purchase Orders</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.PendingPos.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>PO Number</th>
+                                    <th>Supplier</th>
+                                    <th>PO Date</th>
+                                    <th>Items</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var po in Model.PendingPos)
+                                {
+                                    var totalLines = po.PoLines.Count();
+                                    var completedLines = po.PoLines.Count(pl => pl.QtyReceived >= pl.QtyOrdered);
+                                    var progressPercent = totalLines > 0 ? (completedLines * 100 / totalLines) : 0;
+                                    
+                                    <tr>
+                                        <td>
+                                            <strong>@po.PoNo</strong>
+                                        </td>
+                                        <td>@po.Supplier</td>
+                                        <td>@po.PoDate.ToString("yyyy-MM-dd")</td>
+                                        <td>
+                                            <span class="badge bg-info">@totalLines items</span>
+                                        </td>
+                                        <td>
+                                            <div class="progress" style="height: 20px;">
+                                                <div class="progress-bar @(progressPercent == 100 ? "bg-success" : "bg-primary")" 
+                                                     role="progressbar" 
+                                                     style="width: @progressPercent%">
+                                                    @progressPercent%
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            @if (progressPercent < 100)
+                                            {
+                                                <a href="@Url.Action("ReceivePo", new { poId = po.Id })" 
+                                                   class="btn btn-sm btn-primary">
+                                                    <i class="bi bi-box-arrow-in-down"></i> Receive
+                                                </a>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-success">Complete</span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-4">
+                        <i class="bi bi-inbox display-1 text-muted"></i>
+                        <p class="text-muted mt-2">No pending purchase orders</p>
+                        <a href="@Url.Action("SyncPurchaseOrders")" class="btn btn-outline-primary">
+                            <i class="bi bi-arrow-clockwise"></i> Sync from ERP
+                        </a>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Receipts</h5>
+            </div>
+            <div class="card-body">
+                @if (Model.RecentReceipts.Any())
+                {
+                    <div class="list-group list-group-flush">
+                        @foreach (var receipt in Model.RecentReceipts)
+                        {
+                            <div class="list-group-item px-0">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div>
+                                        <h6 class="mb-1">@receipt.Item.Code</h6>
+                                        <p class="mb-1 small text-muted">@receipt.Item.Name</p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-geo-alt"></i> @receipt.ToLocation.Warehouse.Code - @receipt.ToLocation.Code
+                                        </small>
+                                    </div>
+                                    <div class="text-end">
+                                        <span class="badge bg-success">+@receipt.Qty</span>
+                                        <br>
+                                        <small class="text-muted">@receipt.Ts.ToString("HH:mm")</small>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-3">
+                        <i class="bi bi-clock-history display-4 text-muted"></i>
+                        <p class="text-muted mt-2">No recent receipts</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@section scripts {
+    <script src="https://cdn.jsdelivr.net/npm/@@microsoft/signalr@6.0.1/dist/browser/signalr.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Initialize SignalR connection
+            const connection = new signalR.HubConnectionBuilder()
+                .withUrl("/wmsHub")
+                .build();
+
+            connection.start().then(function () {
+                console.log("SignalR connected");
+            }).catch(function (err) {
+                console.error("SignalR connection error: " + err.toString());
+            });
+
+            // Listen for receiving updates
+            connection.on("receivingUpdate", function (data) {
+                showNotification("success", `New receipt: ${data.LpnCode} at ${data.LocationCode}`);
+                // Refresh the page or update specific sections
+                setTimeout(() => location.reload(), 2000);
+            });
+
+            function showNotification(type, message) {
+                const alertClass = type === 'success' ? 'alert-success' : 'alert-info';
+                const notification = `
+                    <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
+                         style="top: 20px; right: 20px; z-index: 9999;">
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                `;
+                $('body').append(notification);
+                
+                // Auto-dismiss after 5 seconds
+                setTimeout(() => {
+                    $('.alert').alert('close');
+                }, 5000);
+            }
+        });
+    </script>
+}
